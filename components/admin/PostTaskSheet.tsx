@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import BottomSheet from "../BottomSheet";
 import { useToast } from "../Toast";
-import { getSupabaseBrowser } from "@/lib/supabase/client";
 import { GROUPS, TASK_TYPES, TASK_TYPE_LABEL, type Group } from "@/lib/constants";
 import type { Course } from "@/lib/types";
 import { cn } from "@/lib/cn";
@@ -84,20 +83,28 @@ export default function PostTaskSheet({
     }
 
     setSubmitting(true);
-    const supabase = getSupabaseBrowser();
-    const { error: insertError } = await supabase.from("tasks").insert({
-      course_code: courseCode,
-      title: title.trim(),
-      description: description.trim() || null,
-      type,
-      due_date: dueDate,
-      weight: weightNum,
-      groups,
-      created_by: adminId,
-    });
-
-    if (insertError) {
-      setError(insertError.message);
+    // Go through the API route so notifications fan out server-side.
+    // (The RLS policies still apply because the route uses the user's session.)
+    try {
+      const res = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          course_code: courseCode,
+          title: title.trim(),
+          description: description.trim() || null,
+          type,
+          due_date: dueDate,
+          weight: weightNum,
+          groups,
+        }),
+      });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({ error: "Failed to post task" }));
+        throw new Error(payload.error || "Failed to post task");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to post task");
       setSubmitting(false);
       return;
     }

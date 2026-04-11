@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
       .in("user_id", candidateIds);
 
     const completedSet = new Set((completions ?? []).map((c: any) => c.user_id));
-    const toNotify = candidateIds.filter((id) => !completedSet.has(id));
+    const toNotify = candidateIds.filter((id: string) => !completedSet.has(id));
     if (toNotify.length === 0) continue;
 
     const result = await sendPushToUsers(toNotify, {

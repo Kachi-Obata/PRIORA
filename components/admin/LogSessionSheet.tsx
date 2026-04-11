@@ -4,7 +4,6 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import BottomSheet from "../BottomSheet";
 import { useToast } from "../Toast";
-import { getSupabaseBrowser } from "@/lib/supabase/client";
 import { GROUPS, type Group } from "@/lib/constants";
 import { formatDate, today } from "@/lib/dates";
 import type { Course } from "@/lib/types";
@@ -13,7 +12,6 @@ interface Props {
   open: boolean;
   onClose: () => void;
   courses: Course[];
-  adminId: string;
   adminGroup: Group | null;
 }
 
@@ -21,7 +19,6 @@ export default function LogSessionSheet({
   open,
   onClose,
   courses,
-  adminId,
   adminGroup,
 }: Props) {
   const router = useRouter();
@@ -53,17 +50,18 @@ export default function LogSessionSheet({
     if (!date) return setError("Pick a date.");
 
     setSubmitting(true);
-    const supabase = getSupabaseBrowser();
-    const { error: insertError } = await supabase.from("attendance_sessions").insert({
-      course_code: courseCode,
-      group,
-      date,
-      counts,
-      created_by: adminId,
-    });
-
-    if (insertError) {
-      setError(insertError.message);
+    try {
+      const res = await fetch("/api/attendance/sessions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ course_code: courseCode, group, date, counts }),
+      });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({ error: "Failed to log session" }));
+        throw new Error(payload.error || "Failed to log session");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to log session");
       setSubmitting(false);
       return;
     }

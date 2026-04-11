@@ -33,7 +33,9 @@ export default function PushRegistrar() {
         if (!sub) {
           sub = await reg.pushManager.subscribe({
             userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array(vapid),
+            // Cast to BufferSource — the DOM lib narrows `buffer` to a plain
+            // ArrayBuffer but browsers accept the Uint8Array directly.
+            applicationServerKey: urlBase64ToUint8Array(vapid) as unknown as BufferSource,
           });
         }
 

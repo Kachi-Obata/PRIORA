@@ -63,7 +63,6 @@ export default function AdminActions({
         open={open === "session"}
         onClose={() => setOpen(null)}
         courses={courses}
-        adminId={adminId}
         adminGroup={adminGroup}
       />
       <CourseSettingsSheet
