@@ -1,0 +1,75 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-font-smoothing: antialiased;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-surface-sunk text-ink font-sans;
+    overscroll-behavior-y: none;
+  }
+
+  button {
+    @apply select-none;
+  }
+
+  input,
+  select,
+  textarea {
+    @apply bg-surface;
+    font-size: 16px; /* prevents iOS zoom on focus */
+  }
+
+  /* Calmer focus rings — visible but not harsh */
+  *:focus-visible {
+    @apply outline-none ring-2 ring-accent/50 ring-offset-2 ring-offset-surface;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-surface rounded-card shadow-sm border border-black/[0.04];
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center bg-accent text-white font-medium rounded-btn px-4 py-3 min-h-[44px] transition-colors;
+  }
+  .btn-primary:hover {
+    @apply bg-accent-ink;
+  }
+  .btn-primary:disabled {
+    @apply bg-ink-soft cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center bg-surface border border-ink-faint text-ink font-medium rounded-btn px-4 py-3 min-h-[44px] transition-colors;
+  }
+  .btn-secondary:hover {
+    @apply bg-surface-sunk;
+  }
+
+  .input-field {
+    @apply w-full rounded-btn border border-ink-faint px-3 py-3 text-ink placeholder:text-ink-soft transition-colors;
+  }
+  .input-field:focus {
+    @apply border-accent outline-none;
+  }
+
+  .label {
+    @apply block text-sm font-medium text-ink mb-1.5;
+  }
+
+  .section-header {
+    @apply text-[13px] font-semibold uppercase tracking-wider text-ink-muted px-1 mb-2 mt-4;
+  }
+}
+
+/* Number transition helper for attendance percentages */
+.num-transition {
+  transition: color 160ms ease;
+}
