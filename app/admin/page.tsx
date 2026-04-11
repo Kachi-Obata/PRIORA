@@ -1,0 +1,36 @@
+import { requireAdminProfile } from "@/lib/profile";
+import { loadAdminData } from "@/lib/data/admin";
+import AppShell from "@/components/AppShell";
+import AdminActions from "@/components/admin/AdminActions";
+import ActivityLog from "@/components/admin/ActivityLog";
+
+export const metadata = { title: "Admin · Priora" };
+export const dynamic = "force-dynamic";
+
+export default async function AdminPage() {
+  const profile = await requireAdminProfile();
+  const data = await loadAdminData(profile.id, profile.role, profile.group);
+
+  return (
+    <AppShell role={profile.role}>
+      <header className="pt-4 pb-3">
+        <h1 className="text-2xl font-semibold tracking-tight">Admin</h1>
+        <p className="mt-1 text-sm text-ink-muted">
+          Post tasks, log class sessions, and keep course settings current.
+        </p>
+      </header>
+
+      <AdminActions
+        courses={data.courses}
+        settings={data.settings}
+        adminId={profile.id}
+        adminGroup={profile.group}
+      />
+
+      <section className="mt-8">
+        <h2 className="section-header">Recent activity</h2>
+        <ActivityLog entries={data.activity} />
+      </section>
+    </AppShell>
+  );
+}
