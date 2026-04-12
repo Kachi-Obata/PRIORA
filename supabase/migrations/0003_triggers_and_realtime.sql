@@ -32,6 +32,8 @@ create trigger on_auth_user_created
 create or replace function public.touch_updated_at()
 returns trigger
 language plpgsql
+security definer
+set search_path = public
 as $$
 begin
   new.updated_at = now();
