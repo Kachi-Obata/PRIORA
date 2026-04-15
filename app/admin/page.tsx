@@ -24,7 +24,10 @@ export default async function AdminPage() {
         courses={data.courses}
         settings={data.settings}
         adminId={profile.id}
-        adminGroup={profile.group}
+        // Master admin bypasses all group filtering — they can post for any
+        // group and log sessions for any group. Group-scoped admins (rep,
+        // assistant_rep) remain restricted to their own group.
+        adminGroup={profile.role === "master_admin" ? null : profile.group}
       />
 
       <section className="mt-8">

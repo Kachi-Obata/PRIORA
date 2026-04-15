@@ -17,6 +17,8 @@ interface Props {
   userGroup: Group;
 }
 
+const HINT_LS_KEY = "priora_hint_shown";
+
 export default function TaskFeed({
   initialTasks,
   attribution,
@@ -26,12 +28,37 @@ export default function TaskFeed({
   const [tasks, setTasks] = useState<TaskWithCompletion[]>(initialTasks);
   const [detail, setDetail] = useState<TaskWithCompletion | null>(null);
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
+  // Default false so SSR markup matches the post-hydration state for users
+  // who've already dismissed the hint. We flip it true in useEffect below.
+  const [showHint, setShowHint] = useState(false);
   const [, startTransition] = useTransition();
 
   // Keep local state in sync if the parent re-renders with new data
   useEffect(() => {
     setTasks(initialTasks);
   }, [initialTasks]);
+
+  // First-time hint: read the localStorage flag on mount.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      if (window.localStorage.getItem(HINT_LS_KEY) !== "true") {
+        setShowHint(true);
+      }
+    } catch {
+      // localStorage unavailable (private mode, quota, etc.) — just don't show
+      // the hint, which is a strictly safe fallback.
+    }
+  }, []);
+
+  const dismissHint = useCallback(() => {
+    setShowHint(false);
+    try {
+      window.localStorage.setItem(HINT_LS_KEY, "true");
+    } catch {
+      // Ignore — hint just won't persist, but the in-memory state still hides it.
+    }
+  }, []);
 
   // Realtime: new tasks pushed while feed is open
   useEffect(() => {
@@ -145,6 +172,14 @@ export default function TaskFeed({
     );
   }
 
+  // The hint lives below the very first task card across all bands.
+  const firstTaskId = bands.flatMap((b) => b.tasks)[0]?.id ?? null;
+
+  function handleOpen(t: TaskWithCompletion) {
+    setDetail(t);
+    if (showHint) dismissHint();
+  }
+
   return (
     <div className="space-y-5">
       {bands.map(({ band, tasks: bandTasks }) => (
@@ -154,14 +189,23 @@ export default function TaskFeed({
           )}
           <div className="space-y-3">
             {bandTasks.map((task) => (
-              <TaskCard
-                key={task.id}
-                task={task}
-                overdue={band === "overdue"}
-                onToggleComplete={toggleComplete}
-                onOpen={(t) => setDetail(t)}
-                pending={pendingIds.has(task.id)}
-              />
+              <div key={task.id}>
+                <TaskCard
+                  task={task}
+                  overdue={band === "overdue"}
+                  onToggleComplete={toggleComplete}
+                  onOpen={handleOpen}
+                  pending={pendingIds.has(task.id)}
+                />
+                {showHint && task.id === firstTaskId && (
+                  <p
+                    className="mt-1.5 ml-1 text-[12.5px] italic text-ink-soft"
+                    aria-hidden="true"
+                  >
+                    Tap a card for full details
+                  </p>
+                )}
+              </div>
             ))}
           </div>
         </section>

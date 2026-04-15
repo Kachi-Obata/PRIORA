@@ -10,13 +10,18 @@ import type {
 import { roleLabel, type Group, type Role } from "@/lib/constants";
 
 export interface AdminActivityEntry {
+  /** Composite key — e.g. "task-<uuid>" — unique across kinds. Use `raw_id` for DB ops. */
   id: string;
+  /** The underlying row UUID — what you pass to the delete API. */
+  raw_id: string;
   kind: "task" | "session" | "settings";
   summary: string; // one-line description of the action
   course_code: string;
   group_label: string; // "Group A", "Group A, B", …
   created_by_label: string; // "Group A Rep" etc.
   created_at: string;
+  /** True if the current admin is allowed to delete this entry (master, or creator). */
+  can_delete: boolean;
 }
 
 export interface AdminData {
@@ -109,24 +114,28 @@ export async function loadAdminData(
     const c = creatorMap.get(t.created_by);
     entries.push({
       id: `task-${t.id}`,
+      raw_id: t.id,
       kind: "task",
       summary: `Posted ${t.type}: ${t.title}`,
       course_code: t.course_code,
       group_label: `Group ${t.groups.join(", ")}`,
       created_by_label: c ? roleLabel(c.role, c.group) : "Admin",
       created_at: t.created_at,
+      can_delete: isMaster || t.created_by === adminId,
     });
   }
   for (const s of recentSessions) {
     const c = creatorMap.get(s.created_by);
     entries.push({
       id: `session-${s.id}`,
+      raw_id: s.id,
       kind: "session",
       summary: `Logged a class session${s.counts ? "" : " (does not count)"}`,
       course_code: s.course_code,
       group_label: `Group ${s.group}`,
       created_by_label: c ? roleLabel(c.role, c.group) : "Admin",
       created_at: s.created_at,
+      can_delete: isMaster || s.created_by === adminId,
     });
   }
   entries.sort((a, b) => b.created_at.localeCompare(a.created_at));

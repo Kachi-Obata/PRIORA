@@ -87,6 +87,13 @@ export default function CourseAttendanceCard({
   );
 
   const hasProjections = expectedSessions != null && summary.total_counted > 0;
+  // Line 3 of the attendance block. Only renders when expected_sessions is set
+  // AND at least one counted session has been logged. Anything else means
+  // there's no meaningful "safe misses" number to show yet.
+  const safeMissesLine =
+    expectedSessions != null && summary.total_counted > 0
+      ? safeMissesPhrase(summary.safe_misses_remaining)
+      : null;
   const statusTone =
     summary.status === "critical"
       ? "border-l-danger"
@@ -141,17 +148,17 @@ export default function CourseAttendanceCard({
             </p>
           )}
 
-          {safeMissesPhrase(summary.safe_misses_remaining) && (
+          {safeMissesLine && (
             <p
               className={cn(
-                "text-sm font-medium",
+                "text-sm font-medium text-ink",
                 summary.safe_misses_remaining != null &&
                   summary.safe_misses_remaining < 0 &&
                   "text-danger-ink",
                 summary.safe_misses_remaining === 0 && "text-warn-ink",
               )}
             >
-              {safeMissesPhrase(summary.safe_misses_remaining)}
+              {safeMissesLine}
             </p>
           )}
 
