@@ -35,6 +35,27 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
+  // Duplicate guard — same course + title (case-insensitive) + due date +
+  // overlapping groups means someone already posted this.
+  const { data: duplicates } = await supabase
+    .from("tasks")
+    .select("id, groups")
+    .eq("course_code", course_code)
+    .ilike("title", title.trim())
+    .eq("due_date", due_date);
+
+  if (duplicates && duplicates.length > 0) {
+    const overlaps = duplicates.some((d: any) =>
+      (d.groups as string[]).some((g: string) => (groups as string[]).includes(g)),
+    );
+    if (overlaps) {
+      return NextResponse.json(
+        { error: "A task with this title already exists for this course and due date." },
+        { status: 409 },
+      );
+    }
+  }
+
   const { data: inserted, error } = await supabase
     .from("tasks")
     .insert({

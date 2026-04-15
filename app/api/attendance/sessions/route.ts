@@ -37,6 +37,23 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
+  // Duplicate guard — the DB has a unique index on (course_code, group, date)
+  // but we check first so the error message is human-readable.
+  const { data: existing } = await supabase
+    .from("attendance_sessions")
+    .select("id")
+    .eq("course_code", course_code)
+    .eq("group", group)
+    .eq("date", date)
+    .maybeSingle();
+
+  if (existing) {
+    return NextResponse.json(
+      { error: "This session has already been logged for that course, group, and date." },
+      { status: 409 },
+    );
+  }
+
   const { data: inserted, error } = await supabase
     .from("attendance_sessions")
     .insert({
@@ -50,6 +67,13 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (error) {
+    // Catch the race condition where two admins submit at the exact same time
+    if (error.code === "23505") {
+      return NextResponse.json(
+        { error: "This session has already been logged for that course, group, and date." },
+        { status: 409 },
+      );
+    }
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 

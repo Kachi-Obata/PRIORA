@@ -13,7 +13,8 @@ interface Props {
   onClose: () => void;
   courses: Course[];
   adminId: string;
-  adminGroup: Group | null; // null for master_admin
+  adminGroup: Group | null; // null for master_admin (no filtering)
+  personalGroup: Group | null; // the admin's actual group (for pre-selection)
 }
 
 export default function PostTaskSheet({
@@ -22,6 +23,7 @@ export default function PostTaskSheet({
   courses,
   adminId,
   adminGroup,
+  personalGroup,
 }: Props) {
   const router = useRouter();
   const toast = useToast();
@@ -45,25 +47,34 @@ export default function PostTaskSheet({
       setType("assignment");
       setDueDate("");
       setWeight("");
-      setGroups(adminGroup ? [adminGroup] : []);
+      // Pre-select the admin's own group (works for both rep and master_admin)
+      setGroups(personalGroup ? [personalGroup] : []);
       setError(null);
     }
-  }, [open, adminGroup]);
+  }, [open, personalGroup]);
 
   const selectedCourse = useMemo(
     () => courses.find((c) => c.code === courseCode),
     [courses, courseCode],
   );
 
-  // When the course changes, pre-fill groups from the course's groups[] intersected
-  // with what this admin can post to.
+  // When the course changes, pre-fill groups.
+  // - Rep / assistant_rep: only their own group (from the course's groups[])
+  // - Master admin: their personal group if the course includes it, otherwise
+  //   just the first group. They can toggle any group on/off from there.
   useEffect(() => {
     if (!selectedCourse) return;
-    const allowed = adminGroup
-      ? selectedCourse.groups.filter((g) => g === adminGroup)
-      : selectedCourse.groups;
-    setGroups(allowed);
-  }, [selectedCourse, adminGroup]);
+    if (adminGroup) {
+      // Group-scoped admin — only their own group
+      setGroups(selectedCourse.groups.filter((g) => g === adminGroup));
+    } else {
+      // Master admin — default to their personal group if the course has it
+      const defaultGroup = personalGroup && selectedCourse.groups.includes(personalGroup)
+        ? [personalGroup]
+        : selectedCourse.groups.slice(0, 1);
+      setGroups(defaultGroup);
+    }
+  }, [selectedCourse, adminGroup, personalGroup]);
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();

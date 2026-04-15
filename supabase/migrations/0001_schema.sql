@@ -102,6 +102,9 @@ create index if not exists attendance_sessions_course_group_idx
   on public.attendance_sessions (course_code, "group");
 create index if not exists attendance_sessions_date_idx
   on public.attendance_sessions (date desc);
+-- Prevent duplicate sessions (same course + group + date)
+create unique index if not exists attendance_sessions_no_dup
+  on public.attendance_sessions (course_code, "group", date);
 
 -- =============================================================================
 -- declared_misses

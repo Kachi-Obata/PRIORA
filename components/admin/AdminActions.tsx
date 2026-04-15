@@ -13,6 +13,7 @@ interface Props {
   settings: CourseGroupSetting[];
   adminId: string;
   adminGroup: Group | null;
+  personalGroup: Group | null;
 }
 
 type SheetKind = "task" | "session" | "settings" | null;
@@ -22,6 +23,7 @@ export default function AdminActions({
   settings,
   adminId,
   adminGroup,
+  personalGroup,
 }: Props) {
   const [open, setOpen] = useState<SheetKind>(null);
 
@@ -58,6 +60,7 @@ export default function AdminActions({
         courses={courses}
         adminId={adminId}
         adminGroup={adminGroup}
+        personalGroup={personalGroup}
       />
       <LogSessionSheet
         open={open === "session"}

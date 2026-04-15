@@ -28,6 +28,9 @@ export default async function AdminPage() {
         // group and log sessions for any group. Group-scoped admins (rep,
         // assistant_rep) remain restricted to their own group.
         adminGroup={profile.role === "master_admin" ? null : profile.group}
+        // The admin's personal group — used to pre-select their own group
+        // in the Post Task form even when they're a master_admin.
+        personalGroup={profile.group}
       />
 
       <section className="mt-8">
