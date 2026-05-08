@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { isAdminRole, type Role } from "@/lib/constants";
 import AppNav from "./AppNav";
 import PushRegistrar from "./PushRegistrar";
+import OfflineBanner from "./OfflineBanner";
 
 interface Props {
   role: Role;
@@ -56,6 +57,7 @@ export default function AppShell({ role, children }: Props) {
       </nav>
 
       <PushRegistrar />
+      <OfflineBanner />
     </div>
   );
 }
