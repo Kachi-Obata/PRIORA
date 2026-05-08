@@ -10,7 +10,7 @@
 // Bump CACHE_VERSION whenever you ship a breaking UI change so old caches
 // are flushed on the next activate.
 
-const CACHE_VERSION = "v2";
+const CACHE_VERSION = "v3";
 const STATIC_CACHE = `priora-static-${CACHE_VERSION}`;
 const CONTENT_CACHE = `priora-content-${CACHE_VERSION}`;
 const ALL_CACHES = [STATIC_CACHE, CONTENT_CACHE];
@@ -62,11 +62,17 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Page navigations (full HTML) and RSC navigation fetches
-  // (same URL, but with Accept: text/x-component from the Next.js router).
-  // NetworkFirst: use fresh data when online, fall back to cache when offline.
-  if (request.mode === "navigate" || request.headers.get("Accept")?.includes("text/x-component")) {
+  // Full-page navigations — NetworkFirst, fall back to cached page, then /offline HTML.
+  if (request.mode === "navigate") {
     event.respondWith(networkFirstWithOfflineFallback(request));
+    return;
+  }
+
+  // RSC navigation payloads (Accept: text/x-component) — NetworkFirst, but on failure
+  // return a 503 so React's error boundary handles it rather than trying to render
+  // the /offline HTML as RSC data (which causes "Application error").
+  if (request.headers.get("Accept")?.includes("text/x-component")) {
+    event.respondWith(networkFirstRSC(request));
     return;
   }
 
@@ -113,6 +119,30 @@ async function networkFirstWithOfflineFallback(request) {
     if (cached) return cached;
     // Last resort: the pre-cached offline page.
     return cache.match(OFFLINE_URL);
+  }
+}
+
+/**
+ * For RSC payloads: try network first, serve cached RSC on failure.
+ * If there's no cache either, return a 503 so React's error boundary
+ * can show a friendly offline message — never return the /offline HTML,
+ * which React would try (and fail) to parse as RSC data.
+ */
+async function networkFirstRSC(request) {
+  const cache = await caches.open(CONTENT_CACHE);
+  try {
+    const response = await fetch(request);
+    if (response.ok && response.status < 400) {
+      cache.put(request, response.clone());
+    }
+    return response;
+  } catch {
+    const cached = await cache.match(request);
+    if (cached) return cached;
+    return new Response("Service unavailable — you appear to be offline.", {
+      status: 503,
+      headers: { "Content-Type": "text/plain" },
+    });
   }
 }
 

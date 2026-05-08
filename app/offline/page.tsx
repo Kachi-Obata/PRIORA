@@ -36,7 +36,7 @@ export default function OfflinePage() {
 
         <button
           type="button"
-          onClick={() => window.location.reload()}
+          onClick={() => (window.location.href = "/")}
           className="mt-2 inline-flex items-center justify-center bg-accent text-white font-medium rounded-btn px-4 py-2.5 text-sm transition-colors hover:bg-accent-ink"
         >
           Try again
