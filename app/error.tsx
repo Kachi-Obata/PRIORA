@@ -1,14 +1,12 @@
 "use client";
 
 // Global error boundary for the (root) layout segment.
-// Shown when a route segment throws — most commonly when the app is offline
-// and an RSC fetch returns a non-OK response.
 //
 // Behaviour:
-//  • If the browser is offline: shows a friendly offline message.
-//  • Otherwise: shows a generic error with a retry button.
-//  • Listens for the `online` event and auto-calls `reset()` so the app
-//    recovers the moment connectivity is restored — no manual swipe-to-close needed.
+//  • Offline: shows a friendly message; auto-navigates home when reconnected.
+//  • Chunk-load error ("Loading chunk N failed"): Webpack internally caches
+//    the failed URL so reset() is a no-op. Hard-navigate to "/" instead.
+//  • Any other error: retry with reset(); falls back to hard-nav if that fails.
 
 import { useEffect } from "react";
 
@@ -17,23 +15,36 @@ interface Props {
   reset: () => void;
 }
 
-export default function GlobalError({ error, reset }: Props) {
-  const isOffline =
-    typeof navigator !== "undefined" && !navigator.onLine;
+/** Webpack caches failed chunk fetches — reset() won't retry them. */
+function isChunkLoadError(err: Error) {
+  return (
+    err.name === "ChunkLoadError" ||
+    err.message?.includes("Loading chunk") ||
+    err.message?.includes("Failed to fetch dynamically imported module")
+  );
+}
 
-  // Auto-recover as soon as the device is back online.
+function hardNav() {
+  window.location.href = "/";
+}
+
+export default function GlobalError({ error, reset }: Props) {
+  const offline = typeof navigator !== "undefined" && !navigator.onLine;
+  const chunkError = isChunkLoadError(error);
+
+  // Decide what "recovery" means for this error type.
+  const recover = offline || chunkError ? hardNav : reset;
+
   useEffect(() => {
-    function handleOnline() {
-      reset();
-    }
-    window.addEventListener("online", handleOnline);
-    return () => window.removeEventListener("online", handleOnline);
-  }, [reset]);
+    // Auto-recover the moment connectivity returns.
+    window.addEventListener("online", recover);
+    return () => window.removeEventListener("online", recover);
+  }, [recover]);
 
   return (
     <div className="min-h-[100svh] flex flex-col items-center justify-center bg-surface-sunk px-6 text-center">
       <div className="space-y-3 max-w-xs">
-        {isOffline ? (
+        {offline ? (
           /* ── Offline state ── */
           <>
             <svg
@@ -64,14 +75,14 @@ export default function GlobalError({ error, reset }: Props) {
 
             <button
               type="button"
-              onClick={() => (window.location.href = "/")}
+              onClick={hardNav}
               className="mt-2 inline-flex items-center justify-center bg-accent text-white font-medium rounded-btn px-4 py-2.5 text-sm transition-colors hover:bg-accent-ink"
             >
               Go to home
             </button>
           </>
         ) : (
-          /* ── Generic error state ── */
+          /* ── Error state (online) ── */
           <>
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -93,15 +104,17 @@ export default function GlobalError({ error, reset }: Props) {
               Something went wrong
             </h1>
             <p className="text-sm text-ink-muted leading-relaxed">
-              {error.message || "An unexpected error occurred. Please try again."}
+              {chunkError
+                ? "A page resource failed to load. Tap below to go back to the app."
+                : (error.message || "An unexpected error occurred. Please try again.")}
             </p>
 
             <button
               type="button"
-              onClick={reset}
+              onClick={recover}
               className="mt-2 inline-flex items-center justify-center bg-accent text-white font-medium rounded-btn px-4 py-2.5 text-sm transition-colors hover:bg-accent-ink"
             >
-              Try again
+              {chunkError ? "Go to home" : "Try again"}
             </button>
           </>
         )}

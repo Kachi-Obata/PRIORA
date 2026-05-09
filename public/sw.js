@@ -10,7 +10,7 @@
 // Bump CACHE_VERSION whenever you ship a breaking UI change so old caches
 // are flushed on the next activate.
 
-const CACHE_VERSION = "v3";
+const CACHE_VERSION = "v4";
 const STATIC_CACHE = `priora-static-${CACHE_VERSION}`;
 const CONTENT_CACHE = `priora-content-${CACHE_VERSION}`;
 const ALL_CACHES = [STATIC_CACHE, CONTENT_CACHE];
@@ -104,6 +104,12 @@ async function cacheFirst(request, cacheName) {
  * Try the network first. On success, update the cache and return the fresh
  * response. On failure (offline / timeout), serve the cached version.
  * If there's no cached version, serve the offline fallback page.
+ *
+ * IMPORTANT: we generate the fallback HTML inline rather than returning the
+ * pre-cached Next.js /offline page. The Next.js page references JS chunks
+ * (e.g. app/offline/page-xxxx.js) that won't be in the static cache — loading
+ * them fails when offline, which causes React to throw "Loading chunk N failed"
+ * instead of showing a friendly UI. An inline HTML string has no chunk deps.
  */
 async function networkFirstWithOfflineFallback(request) {
   const cache = await caches.open(CONTENT_CACHE);
@@ -117,9 +123,77 @@ async function networkFirstWithOfflineFallback(request) {
   } catch {
     const cached = await cache.match(request);
     if (cached) return cached;
-    // Last resort: the pre-cached offline page.
-    return cache.match(OFFLINE_URL);
+    // Last resort: a fully self-contained offline page (no external chunks).
+    return offlineFallbackResponse();
   }
+}
+
+/** Inline offline fallback — zero JS chunk dependencies. */
+function offlineFallbackResponse() {
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Offline — Priora</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100svh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #f4f4f6;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      color: #1a1a1f;
+      padding: 24px;
+      text-align: center;
+    }
+    .card { max-width: 280px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+    svg { color: #a0a0aa; }
+    h1 { font-size: 1.125rem; font-weight: 600; }
+    p { font-size: 0.875rem; line-height: 1.6; color: #6b6b75; }
+    a {
+      display: inline-flex; align-items: center; justify-content: center;
+      margin-top: 8px; padding: 10px 16px;
+      background: #0d9488; color: #fff;
+      font-size: 0.875rem; font-weight: 500;
+      border-radius: 10px; text-decoration: none;
+      transition: background 0.15s;
+    }
+    a:hover { background: #0f766e; }
+  </style>
+  <script>
+    // Auto-navigate home the moment connectivity returns.
+    window.addEventListener('online', function () { window.location.href = '/'; });
+  </script>
+</head>
+<body>
+  <div class="card">
+    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24"
+         fill="none" stroke="currentColor" stroke-width="1.5"
+         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <line x1="2" y1="2" x2="22" y2="22"/>
+      <path d="M8.5 16.5a5 5 0 0 1 7 0"/>
+      <path d="M2 8.82a15 15 0 0 1 4.17-2.65"/>
+      <path d="M10.66 5c4.01-.36 8.14.9 11.34 3.76"/>
+      <path d="M16.85 11.25a10 10 0 0 1 2.22 1.68"/>
+      <path d="M5 12.75a10 10 0 0 1 5.17-2.39"/>
+      <line x1="12" y1="20" x2="12.01" y2="20" stroke-width="2"/>
+    </svg>
+    <h1>You're offline</h1>
+    <p>This page hasn't been loaded before, so there's no cached version to show.
+       Once you're back online the app will reload automatically.</p>
+    <a href="/">Try again</a>
+  </div>
+</body>
+</html>`;
+
+  return new Response(html, {
+    status: 200,
+    headers: { "Content-Type": "text/html; charset=utf-8" },
+  });
 }
 
 /**
