@@ -58,8 +58,8 @@ export default function GlobalError({ error, reset }: Props) {
 
             <h1 className="text-lg font-semibold text-ink">You&apos;re offline</h1>
             <p className="text-sm text-ink-muted leading-relaxed">
-              This page hasn&apos;t been cached yet. Come back once you&apos;re
-              connected — it&apos;ll reload automatically.
+              So uhhh... This page actually hasn&apos;t been cached yet. Just come back once you&apos;re
+              connected — it&apos;ll reload automatically lol.
             </p>
 
             <button
