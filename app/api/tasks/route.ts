@@ -8,8 +8,10 @@ import { getSupabaseServer, getSupabaseServiceRole } from "@/lib/supabase/server
 import { sendPushToUsers } from "@/lib/push";
 import { isAdminRole, TASK_TYPE_LABEL, type Group, type Role } from "@/lib/constants";
 import { relativeDueLabel } from "@/lib/dates";
+import { logAudit, getClientIp } from "@/lib/audit";
 
 export async function POST(request: NextRequest) {
+  const ip = getClientIp(request.headers);
   const supabase = await getSupabaseServer();
   const {
     data: { user },
@@ -49,6 +51,12 @@ export async function POST(request: NextRequest) {
       (d.groups as string[]).some((g: string) => (groups as string[]).includes(g)),
     );
     if (overlaps) {
+      await logAudit({
+        actorId: user.id, action: "task.create", ok: false,
+        errorMsg: "duplicate",
+        meta: { course_code, title, type, due_date, groups },
+        ip,
+      });
       return NextResponse.json(
         { error: "A task with this title already exists for this course and due date." },
         { status: 409 },
@@ -72,8 +80,21 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (error) {
+    await logAudit({
+      actorId: user.id, action: "task.create", ok: false,
+      errorMsg: error.message,
+      meta: { course_code, title, type, due_date, groups },
+      ip,
+    });
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
+
+  await logAudit({
+    actorId: user.id, action: "task.create",
+    resourceId: inserted.id,
+    meta: { course_code, title, type, due_date, groups, weight: weight ?? null },
+    ip,
+  });
 
   // Fan out push notifications to every student in the affected groups.
   // Use service role so we can read profiles across the whole table.

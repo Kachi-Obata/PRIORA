@@ -10,6 +10,7 @@ import { shortDateLabel } from "@/lib/dates";
 import type { AttendanceSession, Course } from "@/lib/types";
 import { ChevronDownIcon } from "../Icon";
 import { cn } from "@/lib/cn";
+import { ToastProvider, useToast } from "../Toast";
 
 interface Props {
   course: Course;
@@ -19,13 +20,22 @@ interface Props {
   userId: string;
 }
 
-export default function CourseAttendanceCard({
+export default function CourseAttendanceCard(props: Props) {
+  return (
+    <ToastProvider>
+      <CourseAttendanceCardInner {...props} />
+    </ToastProvider>
+  );
+}
+
+function CourseAttendanceCardInner({
   course,
   expectedSessions,
   sessions,
   initialMissedIds,
   userId,
 }: Props) {
+  const toast = useToast();
   const [missed, setMissed] = useState<Set<string>>(
     () => new Set(initialMissedIds),
   );
@@ -73,13 +83,14 @@ export default function CourseAttendanceCard({
             if (error) throw error;
           }
         } catch {
-          // Revert on failure
+          // Revert optimistic update and tell the user.
           setMissed((prev) => {
             const n = new Set(prev);
             if (wasMissed) n.add(sessionId);
             else n.delete(sessionId);
             return n;
           });
+          toast.show("Couldn't save. Please try again.");
         }
       });
     },

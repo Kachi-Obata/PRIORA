@@ -8,6 +8,7 @@ import TaskCard from "./TaskCard";
 import TaskDetailSheet from "./TaskDetailSheet";
 import { roleLabel, type Group, type Role } from "@/lib/constants";
 import { today } from "@/lib/dates";
+import { ToastProvider, useToast } from "./Toast";
 
 interface Props {
   initialTasks: TaskWithCompletion[];
@@ -19,12 +20,21 @@ interface Props {
 
 const HINT_LS_KEY = "priora_hint_shown";
 
-export default function TaskFeed({
+export default function TaskFeed(props: Props) {
+  return (
+    <ToastProvider>
+      <TaskFeedInner {...props} />
+    </ToastProvider>
+  );
+}
+
+function TaskFeedInner({
   initialTasks,
   attribution,
   userId,
   userGroup,
 }: Props) {
+  const toast = useToast();
   const [tasks, setTasks] = useState<TaskWithCompletion[]>(initialTasks);
   const [detail, setDetail] = useState<TaskWithCompletion | null>(null);
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
@@ -144,7 +154,7 @@ export default function TaskFeed({
             if (error) throw error;
           }
         } catch {
-          // Revert on failure
+          // Revert optimistic update and tell the user.
           setTasks((prev) =>
             prev.map((t) =>
               t.id === task.id
@@ -152,6 +162,7 @@ export default function TaskFeed({
                 : t,
             ),
           );
+          toast.show("Couldn't update. Please try again.");
         } finally {
           setPendingIds((s) => {
             const n = new Set(s);

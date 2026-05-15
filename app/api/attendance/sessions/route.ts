@@ -11,8 +11,10 @@ import {
   classifyStatus,
 } from "@/lib/attendance";
 import { isAdminRole, type Group, type Role } from "@/lib/constants";
+import { logAudit, getClientIp } from "@/lib/audit";
 
 export async function POST(request: NextRequest) {
+  const ip = getClientIp(request.headers);
   const supabase = await getSupabaseServer();
   const {
     data: { user },
@@ -48,6 +50,12 @@ export async function POST(request: NextRequest) {
     .maybeSingle();
 
   if (existing) {
+    await logAudit({
+      actorId: user.id, action: "session.create", ok: false,
+      errorMsg: "duplicate",
+      meta: { course_code, group, date, counts },
+      ip,
+    });
     return NextResponse.json(
       { error: "This session has already been logged for that course, group, and date." },
       { status: 409 },
@@ -67,6 +75,12 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (error) {
+    await logAudit({
+      actorId: user.id, action: "session.create", ok: false,
+      errorMsg: error.message,
+      meta: { course_code, group, date, counts, error_code: error.code },
+      ip,
+    });
     // Catch the race condition where two admins submit at the exact same time
     if (error.code === "23505") {
       return NextResponse.json(
@@ -76,6 +90,13 @@ export async function POST(request: NextRequest) {
     }
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
+
+  await logAudit({
+    actorId: user.id, action: "session.create",
+    resourceId: inserted.id,
+    meta: { course_code, group, date, counts: inserted.counts },
+    ip,
+  });
 
   // Fan out at-risk notifications. Only counted sessions can push someone
   // over a threshold.
