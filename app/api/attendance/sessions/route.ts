@@ -12,8 +12,12 @@ import {
 } from "@/lib/attendance";
 import { isAdminRole, type Group, type Role } from "@/lib/constants";
 import { logAudit, getClientIp } from "@/lib/audit";
+import { checkBodySize, validateInputs, safeDbError } from "@/lib/api-guard";
 
 export async function POST(request: NextRequest) {
+  const sizeError = checkBodySize(request.headers);
+  if (sizeError) return sizeError;
+
   const ip = getClientIp(request.headers);
   const supabase = await getSupabaseServer();
   const {
@@ -38,6 +42,9 @@ export async function POST(request: NextRequest) {
   if (!course_code || !group || !date) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
+
+  const lengthError = validateInputs({ course_code, group });
+  if (lengthError) return lengthError;
 
   // Duplicate guard — the DB has a unique index on (course_code, group, date)
   // but we check first so the error message is human-readable.
@@ -88,7 +95,7 @@ export async function POST(request: NextRequest) {
         { status: 409 },
       );
     }
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return safeDbError(error.code);
   }
 
   await logAudit({

@@ -9,8 +9,12 @@ import { sendPushToUsers } from "@/lib/push";
 import { isAdminRole, TASK_TYPE_LABEL, type Group, type Role } from "@/lib/constants";
 import { relativeDueLabel } from "@/lib/dates";
 import { logAudit, getClientIp } from "@/lib/audit";
+import { checkBodySize, validateInputs, safeDbError } from "@/lib/api-guard";
 
 export async function POST(request: NextRequest) {
+  const sizeError = checkBodySize(request.headers);
+  if (sizeError) return sizeError;
+
   const ip = getClientIp(request.headers);
   const supabase = await getSupabaseServer();
   const {
@@ -36,6 +40,9 @@ export async function POST(request: NextRequest) {
   if (!course_code || !title || !type || !due_date || !Array.isArray(groups) || groups.length === 0) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
+
+  const lengthError = validateInputs({ course_code, title, description });
+  if (lengthError) return lengthError;
 
   // Duplicate guard — same course + title (case-insensitive) + due date +
   // overlapping groups means someone already posted this.
@@ -86,7 +93,7 @@ export async function POST(request: NextRequest) {
       meta: { course_code, title, type, due_date, groups },
       ip,
     });
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return safeDbError(error.code);
   }
 
   await logAudit({
