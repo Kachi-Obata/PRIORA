@@ -1,5 +1,5 @@
 # Priora
-Build to let students know how many classes they can comfortably miss without being disallowed from exams — we love to stick it to the system lol.
+Built to let students know how many classes they can comfortably miss without being disallowed from exams — we love to stick it to the system lol.
 
 Academic decision-support PWA for university students. Tracks tasks, attendance, and deadlines — with push notifications, offline support, and role-based admin tools.
 
