@@ -3,7 +3,7 @@
 // Server-side task creation path. The client could insert into `tasks`
 // directly (RLS allows it), but routing through this handler lets us fan out
 // push notifications server-side immediately on create.
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse, after, type NextRequest } from "next/server";
 import { getSupabaseServer, getSupabaseServiceRole } from "@/lib/supabase/server";
 import { sendPushToUsers } from "@/lib/push";
 import { isAdminRole, TASK_TYPE_LABEL, type Group, type Role } from "@/lib/constants";
@@ -103,26 +103,28 @@ export async function POST(request: NextRequest) {
     ip,
   });
 
-  // Fan out push notifications to every student in the affected groups.
-  // Use service role so we can read profiles across the whole table.
-  try {
-    const service = getSupabaseServiceRole();
-    const { data: recipients } = await service
-      .from("profiles")
-      .select("id")
-      .in("group", groups as Group[])
-      .not("full_name", "is", null);
+  // Fan out push notifications after the response is sent — the admin
+  // shouldn't wait on however many push calls this resolves to.
+  after(async () => {
+    try {
+      const service = getSupabaseServiceRole();
+      const { data: recipients } = await service
+        .from("profiles")
+        .select("id")
+        .in("group", groups as Group[])
+        .not("full_name", "is", null);
 
-    const recipientIds = (recipients ?? []).map((r: any) => r.id);
-    await sendPushToUsers(recipientIds, {
-      title: `New ${type} in ${course_code}`,
-      body: `${title} — due ${relativeDueLabel(due_date)}`,
-      url: "/",
-      tag: `task-${inserted.id}`,
-    });
-  } catch {
-    // Notifications are best-effort; never fail the request because of them.
-  }
+      const recipientIds = (recipients ?? []).map((r: any) => r.id);
+      await sendPushToUsers(recipientIds, {
+        title: `New ${type} in ${course_code}`,
+        body: `${title} — due ${relativeDueLabel(due_date)}`,
+        url: "/",
+        tag: `task-${inserted.id}`,
+      });
+    } catch {
+      // Notifications are best-effort; never fail the request because of them.
+    }
+  });
 
   return NextResponse.json({ task: inserted });
 }

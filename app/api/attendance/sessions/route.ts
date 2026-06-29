@@ -3,7 +3,7 @@
 // Log a class session. Server-side so we can (a) enforce role checks beyond
 // RLS, and (b) fan out attendance-at-risk notifications to any student whose
 // attendance now sits in the warning band for this course.
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse, after, type NextRequest } from "next/server";
 import { getSupabaseServer, getSupabaseServiceRole } from "@/lib/supabase/server";
 import { sendPushToUsers } from "@/lib/push";
 import {
@@ -105,14 +105,18 @@ export async function POST(request: NextRequest) {
     ip,
   });
 
-  // Fan out at-risk notifications. Only counted sessions can push someone
+  // Fan out at-risk notifications after the response is sent — this walks
+  // every student in the group across several queries plus a push fan-out;
+  // the admin shouldn't wait on it. Only counted sessions can push someone
   // over a threshold.
   if (inserted.counts) {
-    try {
-      await notifyAtRisk(course_code, group as Group);
-    } catch {
-      // Best effort
-    }
+    after(async () => {
+      try {
+        await notifyAtRisk(course_code, group as Group);
+      } catch {
+        // Best effort
+      }
+    });
   }
 
   return NextResponse.json({ session: inserted });
