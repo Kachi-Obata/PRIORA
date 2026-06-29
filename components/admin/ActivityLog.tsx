@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { relativeTimeLabel } from "@/lib/dates";
 import type { AdminActivityEntry } from "@/lib/data/admin";
@@ -22,23 +22,47 @@ export default function ActivityLog(props: Props) {
   );
 }
 
-function ActivityLogInner({ entries }: Props) {
+function ActivityLogInner({ entries: initialEntries }: Props) {
   const router = useRouter();
   const toast = useToast();
-  const [pending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
+  const [entries, setEntries] = useState(initialEntries);
   const [confirming, setConfirming] = useState<AdminActivityEntry | null>(null);
 
-  async function doDelete(entry: AdminActivityEntry) {
-    const supabase = getSupabaseBrowser();
-    const table = entry.kind === "task" ? "tasks" : "attendance_sessions";
-    const { error } = await supabase.from(table).delete().eq("id", entry.raw_id);
-    if (error) {
-      toast.show("Couldn't delete. Please try again.");
-      return;
-    }
-    toast.show(entry.kind === "task" ? "Task deleted" : "Session deleted");
+  // Stay in sync with the server once a background refresh lands (our own
+  // delete below, the 5-minute auto-refresh, or a pull-to-refresh).
+  useEffect(() => {
+    setEntries(initialEntries);
+  }, [initialEntries]);
+
+  function handleDelete(entry: AdminActivityEntry) {
+    // Optimistic: the row disappears and the dialog closes immediately.
+    // The actual delete happens in the background — the admin never waits.
+    setEntries((prev) => prev.filter((e) => e.id !== entry.id));
     setConfirming(null);
-    router.refresh();
+
+    startTransition(async () => {
+      const supabase = getSupabaseBrowser();
+      const table = entry.kind === "task" ? "tasks" : "attendance_sessions";
+      const { error } = await supabase.from(table).delete().eq("id", entry.raw_id);
+
+      if (error) {
+        // Roll back — put it back in its original position.
+        setEntries((prev) => {
+          if (prev.some((e) => e.id === entry.id)) return prev;
+          return [...prev, entry].sort((a, b) =>
+            b.created_at.localeCompare(a.created_at),
+          );
+        });
+        toast.show("Couldn't delete. Please try again.");
+        return;
+      }
+
+      toast.show(entry.kind === "task" ? "Task deleted" : "Session deleted");
+      // Keep the server/router cache in sync for next navigation — fired
+      // after the UI has already updated, so it never blocks anything.
+      router.refresh();
+    });
   }
 
   if (entries.length === 0) {
@@ -86,13 +110,8 @@ function ActivityLogInner({ entries }: Props) {
       {confirming && (
         <ConfirmDialog
           entry={confirming}
-          pending={pending}
           onCancel={() => setConfirming(null)}
-          onConfirm={() =>
-            startTransition(async () => {
-              await doDelete(confirming);
-            })
-          }
+          onConfirm={() => handleDelete(confirming)}
         />
       )}
     </>
@@ -101,12 +120,11 @@ function ActivityLogInner({ entries }: Props) {
 
 interface ConfirmProps {
   entry: AdminActivityEntry;
-  pending: boolean;
   onCancel: () => void;
   onConfirm: () => void;
 }
 
-function ConfirmDialog({ entry, pending, onCancel, onConfirm }: ConfirmProps) {
+function ConfirmDialog({ entry, onCancel, onConfirm }: ConfirmProps) {
   const heading =
     entry.kind === "task" ? "Delete this task?" : "Delete this session?";
   const body =
@@ -131,21 +149,15 @@ function ConfirmDialog({ entry, pending, onCancel, onConfirm }: ConfirmProps) {
         </h3>
         <p className="mt-2 text-sm text-ink-muted">{body}</p>
         <div className="mt-5 flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
-          <button
-            type="button"
-            className="btn-secondary"
-            onClick={onCancel}
-            disabled={pending}
-          >
+          <button type="button" className="btn-secondary" onClick={onCancel}>
             Cancel
           </button>
           <button
             type="button"
-            className="inline-flex items-center justify-center bg-danger text-white font-medium rounded-btn px-4 py-3 min-h-[44px] transition-colors hover:bg-danger-ink disabled:opacity-60 disabled:cursor-not-allowed"
+            className="inline-flex items-center justify-center bg-danger text-white font-medium rounded-btn px-4 py-3 min-h-[44px] transition-colors hover:bg-danger-ink"
             onClick={onConfirm}
-            disabled={pending}
           >
-            {pending ? "Deleting…" : "Delete"}
+            Delete
           </button>
         </div>
       </div>
