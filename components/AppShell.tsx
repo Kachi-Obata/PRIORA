@@ -7,6 +7,7 @@ import { isAdminRole, type Role } from "@/lib/constants";
 import AppNav from "./AppNav";
 import PushRegistrar from "./PushRegistrar";
 import OfflineBanner from "./OfflineBanner";
+import PullToRefresh from "./PullToRefresh";
 
 interface Props {
   role: Role;
@@ -44,7 +45,7 @@ export default function AppShell({ role, children }: Props) {
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0">
         <main className="flex-1 mx-auto w-full max-w-[640px] px-4 pb-24 md:pb-10 pt-safe">
-          {children}
+          <PullToRefresh>{children}</PullToRefresh>
         </main>
       </div>
 

@@ -3,6 +3,16 @@ import { withSentryConfig } from "@sentry/nextjs";
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  experimental: {
+    // How long the client-side router cache treats a visited page's data as
+    // fresh. Switching tabs (Home/Attendance/Admin) within this window is
+    // instant — no network roundtrip, no loading.tsx flash. After it elapses,
+    // the next visit fetches fresh data automatically. Paired with the
+    // PullToRefresh component's 5-minute background timer in AppShell.
+    staleTimes: {
+      dynamic: 300, // 5 minutes
+    },
+  },
   async headers() {
     // CSP connect-src: allow Supabase (https + wss) and Sentry's EU ingest.
     const supabaseHost = "https://cbwgymtndindoemtpogb.supabase.co";
